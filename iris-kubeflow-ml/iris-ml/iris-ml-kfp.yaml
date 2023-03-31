@@ -1,0 +1,77 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: iris-ml-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.19, pipelines.kubeflow.org/pipeline_compilation_time: '2023-03-31T17:59:41.466780',
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "Kubeflow pipeline local
+      using iris", "name": "iris-ml"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.19}
+spec:
+  entrypoint: iris-ml
+  templates:
+  - name: evaluation
+    container:
+      args: [--accuracy_json, /tmp/inputs/input-0/data]
+      image: pauloyuncha/iris-kubeflow-ml-evaluation:latest
+    inputs:
+      artifacts:
+      - {name: regression-accuracy_json, path: /tmp/inputs/input-0/data}
+    outputs:
+      artifacts:
+      - {name: evaluation-result_df, path: /app/result_df}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.19
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+  - name: iris-ml
+    dag:
+      tasks:
+      - name: evaluation
+        template: evaluation
+        dependencies: [regression]
+        arguments:
+          artifacts:
+          - {name: regression-accuracy_json, from: '{{tasks.regression.outputs.artifacts.regression-accuracy_json}}'}
+      - {name: preprocess-data, template: preprocess-data}
+      - name: regression
+        template: regression
+        dependencies: [preprocess-data]
+        arguments:
+          artifacts:
+          - {name: preprocess-data-X, from: '{{tasks.preprocess-data.outputs.artifacts.preprocess-data-X}}'}
+          - {name: preprocess-data-y, from: '{{tasks.preprocess-data.outputs.artifacts.preprocess-data-y}}'}
+  - name: preprocess-data
+    container:
+      args: []
+      image: pauloyuncha/iris-kubeflow-ml-preprocessing:latest
+    outputs:
+      artifacts:
+      - {name: preprocess-data-X, path: /app/X}
+      - {name: preprocess-data-y, path: /app/y}
+    metadata:
+      labels:
+        iris-ml: "true"
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.19
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+  - name: regression
+    container:
+      args: [--X, /tmp/inputs/input-0/data, --y, /tmp/inputs/input-1/data]
+      image: pauloyuncha/iris-kubeflow-ml-feature-lr:latest
+    inputs:
+      artifacts:
+      - {name: preprocess-data-X, path: /tmp/inputs/input-0/data}
+      - {name: preprocess-data-y, path: /tmp/inputs/input-1/data}
+    outputs:
+      artifacts:
+      - {name: regression-accuracy_json, path: /app/accuracy.json}
+      - {name: regression-model_regression, path: /app/model_lr.joblib}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.19
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+  arguments:
+    parameters: []
+  serviceAccountName: pipeline-runner

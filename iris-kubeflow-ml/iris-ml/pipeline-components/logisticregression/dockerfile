@@ -1,0 +1,17 @@
+# Basic Slim Python Image
+ARG MLGO_DOCKER_REGISTRY="index.docker.io"
+FROM ${MLGO_DOCKER_REGISTRY}/python:3.9.15-slim
+
+RUN mkdir -p /app
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=TRUE
+
+RUN apt-get update && apt-get upgrade -y & apt-get install -y python3-pip & pip3 install --upgrade pip
+RUN pip3 install numpy
+RUN pip3 install pandas
+RUN pip3 install -U scikit-learn
+
+COPY . /app/
+
+ENTRYPOINT [ "python3", "regression.py" ]
